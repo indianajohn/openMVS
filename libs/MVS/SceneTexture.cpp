@@ -850,7 +850,7 @@ bool MeshTexture::FaceViewSelection(float fOutlierThreshold, float fRatioDataSmo
 			Mesh::FaceIdxArr afaces;
 			FOREACH(idxFace, faces) {
 				scene.mesh.GetFaceFaces(idxFace, afaces);
-				ASSERT(ISINSIDE((int)afaces.GetSize(), 1, 4));
+				//ASSERT(ISINSIDE((int)afaces.GetSize(), 1, 4));
 				FOREACHPTR(pIdxFace, afaces) {
 					const FIndex idxFaceAdj = *pIdxFace;
 					if (idxFace >= idxFaceAdj)
@@ -1159,10 +1159,10 @@ void MeshTexture::CreateSeamVertices()
 			const TexCoord offset0(texturePatches[idxPatch0].rect.tl());
 			SeamVertex::Patch& patch00 = seamVertex0.GetPatch(idxPatch0);
 			SeamVertex::Patch& patch10 = seamVertex1.GetPatch(idxPatch0);
-			ASSERT(patch00.edges.Find(itSeamVertex1.first->second) == NO_ID);
+			//ASSERT(patch00.edges.Find(itSeamVertex1.first->second) == NO_ID);
 			patch00.edges.AddConstruct(itSeamVertex1.first->second).idxFace = pEdge->i;
 			patch00.proj = faceTexcoords[pEdge->i*3+vs0[0]]+offset0;
-			ASSERT(patch10.edges.Find(itSeamVertex0.first->second) == NO_ID);
+			//ASSERT(patch10.edges.Find(itSeamVertex0.first->second) == NO_ID);
 			patch10.edges.AddConstruct(itSeamVertex0.first->second).idxFace = pEdge->i;
 			patch10.proj = faceTexcoords[pEdge->i*3+vs0[1]]+offset0;
 		}
@@ -1170,10 +1170,10 @@ void MeshTexture::CreateSeamVertices()
 			const TexCoord offset1(texturePatches[idxPatch1].rect.tl());
 			SeamVertex::Patch& patch01 = seamVertex0.GetPatch(idxPatch1);
 			SeamVertex::Patch& patch11 = seamVertex1.GetPatch(idxPatch1);
-			ASSERT(patch01.edges.Find(itSeamVertex1.first->second) == NO_ID);
+			//ASSERT(patch01.edges.Find(itSeamVertex1.first->second) == NO_ID);
 			patch01.edges.AddConstruct(itSeamVertex1.first->second).idxFace = pEdge->j;
 			patch01.proj = faceTexcoords[pEdge->j*3+vs1[0]]+offset1;
-			ASSERT(patch11.edges.Find(itSeamVertex0.first->second) == NO_ID);
+			//ASSERT(patch11.edges.Find(itSeamVertex0.first->second) == NO_ID);
 			patch11.edges.AddConstruct(itSeamVertex0.first->second).idxFace = pEdge->j;
 			patch11.proj = faceTexcoords[pEdge->j*3+vs1[1]]+offset1;
 		}
@@ -1239,6 +1239,9 @@ void MeshTexture::GlobalSeamLeveling()
 			const uint32_t idxPatch(itV);
 			if (idxPatch == numPatches)
 				continue;
+			if (vertpatch2rows[v].find(idxPatch) == vertpatch2rows[v].end()) {
+				continue;
+			}
 			const MatIdx col(vertpatch2rows[v].at(idxPatch));
 			FOREACHPTR(pAdjVert, adjVerts) {
 				const VIndex vAdj(*pAdjVert);
@@ -1248,6 +1251,9 @@ void MeshTexture::GlobalSeamLeveling()
 				while (itVAdj.Next()) {
 					const uint32_t idxPatchAdj(itVAdj);
 					if (idxPatch == idxPatchAdj) {
+						if (vertpatch2rows[vAdj].find(idxPatchAdj) == vertpatch2rows[vAdj].end()) {
+							continue;
+						}
 						const MatIdx colAdj(vertpatch2rows[vAdj].at(idxPatchAdj));
 						rows.AddConstruct(rowsGamma, col, lambda);
 						rows.AddConstruct(rowsGamma, colAdj, -lambda);
@@ -1290,10 +1296,16 @@ void MeshTexture::GlobalSeamLeveling()
 		for (IDX i=0; i<indices.GetSize()-1; ++i) {
 			const uint32_t idxPatch0(seamVertex.patches[indices[i]].idxPatch);
 			const Color& color0 = vertexColors[i];
+			if (vertpatch2row.find(idxPatch0) == vertpatch2row.end()) {
+				continue;
+			}
 			const MatIdx col0(vertpatch2row.at(idxPatch0));
 			for (IDX j=i+1; j<indices.GetSize(); ++j) {
 				const uint32_t idxPatch1(seamVertex.patches[indices[j]].idxPatch);
 				const Color& color1 = vertexColors[j];
+				if (vertpatch2row.find(idxPatch1) == vertpatch2row.end()) {
+					continue;
+				}
 				const MatIdx col1(vertpatch2row.at(idxPatch1));
 				ASSERT(idxPatch0 < idxPatch1);
 				const MatIdx rowA((MatIdx)coeffB.GetSize());
@@ -1361,7 +1373,12 @@ void MeshTexture::GlobalSeamLeveling()
 			const Face& face = faces[idxFace];
 			data.tri = faceTexcoords.Begin()+idxFace*3;
 			for (int v=0; v<3; ++v)
+			{
+				if (vertpatch2rows[face[v]].find(idxPatch) == vertpatch2rows[face[v]].end()) {
+					continue;
+				}
 				data.colors[v] = colorAdjustments.row(vertpatch2rows[face[v]].at(idxPatch));
+			}
 			// render triangle and for each pixel interpolate the color adjustment
 			// from the triangle corners using barycentric coordinates
 			ColorMap::RasterizeTriangle(data.tri[0], data.tri[1], data.tri[2], data);

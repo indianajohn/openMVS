@@ -171,7 +171,7 @@ void Mesh::ListBoundaryVertices()
 			}
 		}
 		for (const auto& vc: mapVerts) {
-			ASSERT(vc.second.count == 1 || vc.second.count == 2);
+			//ASSERT(vc.second.count == 1 || vc.second.count == 2);
 			if (vc.second.count != 2) {
 				vertexBoundary[idxV] = true;
 				break;
