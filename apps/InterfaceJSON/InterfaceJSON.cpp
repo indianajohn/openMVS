@@ -7,6 +7,8 @@
 
 using namespace MVS;
 using namespace boost::program_options;
+typedef Eigen::Matrix<double, 3, 3, Eigen::RowMajor> EMat33d;
+typedef Eigen::Matrix<double, 3, 1> EVec3d;
 
 Interface parse(const std::string &path) {
   Interface scene;
@@ -24,18 +26,24 @@ Interface parse(const std::string &path) {
 
     // Read image so we know the size
     boost::filesystem::path image_path =
-        images / itr->path().leaf().replace_extension("jpg");
+        images / itr->path().leaf().replace_extension("png");
     cv::Mat image = cv::imread(image_path.string());
 
     Interface::Platform::Camera camera;
     camera.name = image_path.string();
-    camera.height = image.rows;
-    camera.width = image.cols;
     camera.K = camera.K.eye();
     camera.K(0, 0) = json["fx"];
     camera.K(0, 2) = json["cx"];
     camera.K(1, 1) = json["fy"];
     camera.K(1, 2) = json["cy"];
+    const REAL fScale(REAL(1) /
+                      Interface::Platform::Camera::GetNormalizationScale(
+                          image.cols, image.rows));
+    camera.K(0, 0) *= fScale;
+    camera.K(1, 1) *= fScale;
+    camera.K(0, 2) *= fScale;
+    camera.K(1, 2) *= fScale;
+    std::cout << camera.K << std::endl;
     camera.R = Interface::Mat33d::eye();
     camera.C = Interface::Pos3d(0, 0, 0);
 
@@ -47,20 +55,25 @@ Interface parse(const std::string &path) {
         json["t_11"].get<double>(), json["t_12"].get<double>(),
         json["t_20"].get<double>(), json["t_21"].get<double>(),
         json["t_22"].get<double>();
+    Eigen::Map<EMat33d> R(pose.R.val);
+    R = R * Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
     pose.C = Interface::Pos3d(json["t_03"], json["t_13"], json["t_23"]);
     EnsureRotationMatrix((Matrix3x3d &)pose.R);
     Interface::Image mvs_image;
-    mvs_image.name = image_path.string();
+    mvs_image.name = MAKE_PATH_SAFE(image_path.string().c_str());
     mvs_image.platformID = scene.platforms.size();
     mvs_image.cameraID = 0;
     mvs_image.ID = scene.images.size();
     mvs_image.poseID = (uint32_t)platform.poses.size();
-    platform.poses.push_back(pose);
-    scene.images.push_back(mvs_image);
+    std::cout << "platform=" << mvs_image.platformID
+              << "/camera=" << mvs_image.cameraID << "/image=" << mvs_image.ID
+              << "/pose=" << mvs_image.poseID << pose.R << pose.C << std::endl;
 
-    // Add platform to scene.
+    // Add everything
+    platform.poses.push_back(pose);
     platform.cameras.push_back(camera);
     scene.platforms.push_back(platform);
+    scene.images.push_back(mvs_image);
   }
   return scene;
 }
